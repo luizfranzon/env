@@ -1,28 +1,45 @@
 #!/usr/bin/env node
+const { execSync } = require('child_process');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+
+const RTK_CACHE = path.join(os.tmpdir(), 'rtk-statusline-cache.json');
+const RTK_TTL = 10_000;
+
+function getRtkStats() {
+    try {
+        const st = fs.statSync(RTK_CACHE);
+        if (Date.now() - st.mtimeMs < RTK_TTL) {
+            return JSON.parse(fs.readFileSync(RTK_CACHE, 'utf8')).summary || null;
+        }
+    } catch { /* sem cache válido, segue para re-executar */ }
+    try {
+        const out = execSync('rtk gain --format json', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+        fs.writeFileSync(RTK_CACHE, out);
+        return JSON.parse(out).summary || null;
+    } catch {
+        return null;
+    }
+}
+
 let input = '';
 process.stdin.on('data', chunk => input += chunk);
 process.stdin.on('end', () => {
     try {
         const parts = [];
         const data = JSON.parse(input);
-        const model = data.model.display_name;
+        const model = data.model?.display_name || '?';
         const effort = data.effort?.level;
 
         const pct = Math.floor(data.context_window?.used_percentage || 0);
         const filled = Math.floor(pct * 10 / 100);
         let bar = '▓'.repeat(filled) + '░'.repeat(10 - filled);
-        if (data.context_window.total_input_tokens >= 100_000) {
+        if (pct >= 85) {
             bar = `\x1b[31m${bar}\x1b[0m`;
-        } else if (data.context_window.total_input_tokens >= 80_000) {
+        } else if (pct >= 70) {
             bar = `\x1b[33m${bar}\x1b[0m`;
         }
-
-        const cost = data.cost?.total_cost_usd || 0;
-        const durationMs = data.cost?.total_duration_ms || 0;
-        const durationSec = Math.floor(durationMs / 1000);
-        const mins = Math.floor(durationSec / 60);
-        const secs = durationSec % 60;
-
 
         const fiveH = data.rate_limits?.five_hour?.used_percentage;
         const fiveHResetsAt = data.rate_limits?.five_hour?.resets_at;
@@ -49,9 +66,20 @@ process.stdin.on('end', () => {
             parts.push(`5h: ${Math.round(fiveH)}% [${budgetColor}h${currentHour}: ${hourBudget}% (${diffStr})${resetColor}] (resets in ${hours}h${mins}m)`);
         }
 
-        const usedK = Math.round(data.context_window.total_input_tokens / 1000);
-        const totalK = data.context_window.context_window_size / 1000;
-        parts.unshift(`${bar} (${usedK}k/${totalK}k)`);
+        const usedK = Math.round((data.context_window?.total_input_tokens || 0) / 1000);
+        const totalK = (data.context_window?.context_window_size || 0) / 1000;
+
+        const cyan  = '\x1b[96m';
+        const yellow = '\x1b[93m';
+        const green  = '\x1b[92m';
+        const r      = '\x1b[0m';
+
+        const rtk = getRtkStats();
+        const rtkStr = rtk
+            ? ` (${cyan}↑${Math.round(rtk.total_input / 1000)}k${r} ${yellow}↓${Math.round(rtk.total_output / 1000)}k${r} ${green}♺ ${Math.round(rtk.total_saved / 1000)}k (${Math.round(rtk.avg_savings_pct)}%)${r})`
+            : '';
+
+        parts.unshift(`${bar} (${usedK}k/${totalK}k)${rtkStr}`);
 
         const orange = '\x1b[38;5;214m';
         const reset = '\x1b[0m';
@@ -73,7 +101,7 @@ process.stdin.on('end', () => {
         const lightBlue = '\x1b[94m';
         const coloredCwd = `${lightBlue}${cwd}${reset}`;
 
-        console.log(`[${coloredModel}${coloredEffort}] [${coloredCwd}] ${parts.join(' | ')}`);
+        console.log(`${coloredModel}${coloredEffort} [${coloredCwd}] ${parts.join(' | ')}`);
     } catch (error) {
         console.log('Error constructing statusline: ', error);
     }
