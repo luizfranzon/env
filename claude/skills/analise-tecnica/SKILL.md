@@ -21,6 +21,7 @@ model: haiku
    - `R` → **(Renomeação)**
 
 3. Ler o diff de cada arquivo e escrever uma linha concisa descrevendo **o que mudou funcionalmente** — não o que o código faz, mas o que foi adicionado/removido/alterado.
+   - Para arquivos com `D` (deletados): descrever o que o arquivo fazia/continha antes de ser removido. Use `git show homologacao:<path>` para ver o conteúdo original se necessário.
 
 ## Formato de saída
 
