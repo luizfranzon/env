@@ -39,6 +39,10 @@ disable-model-invocation: true
 - Description in PT-BR, no trailing period
 - No "WIP", "Correções" alone, or vague English ("Fix", "Update")
 - Keep under 72 characters total
+- **Describe the business rule / user-facing action**, not the technical detail. Before writing, ask: "qual ação do usuário essa mudança afeta?" — not "qual elemento foi alterado?". The message must be readable by someone who never saw the code.
+  - ❌ "Oculta ícone de reordenação quando em modo de edição" (visual detail)
+  - ❌ "Impede abertura do modal de busca durante edição" (technical detail)
+  - ✅ "Bloqueia edição do curso do treinamento quando em modo de edição" (business rule)
 
 ## Output format
 

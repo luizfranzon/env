@@ -63,7 +63,9 @@ process.stdin.on('end', () => {
             const budgetColor = diff > 0 ? '\x1b[31m' : '\x1b[32m';
             const resetColor = '\x1b[0m';
 
-            parts.push(`5h: ${Math.round(fiveH)}% [${budgetColor}h${currentHour}: ${hourBudget}% (${diffStr})${resetColor}] (resets in ${hours}h${mins}m)`);
+            const resetDate = new Date(fiveHResetsAt * 1000);
+            const resetTime = resetDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', hour12: false });
+            parts.push(`5h: ${Math.round(fiveH)}% [${budgetColor}h${currentHour}: ${hourBudget}% (${diffStr})${resetColor}] (resets in ${hours}h${mins}m @ ${resetTime})`);
         }
 
         const usedK = Math.round((data.context_window?.total_input_tokens || 0) / 1000);
