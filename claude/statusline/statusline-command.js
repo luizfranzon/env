@@ -32,6 +32,10 @@ const EFFORT_COLORS = {
 
 const pctColor = p => p <= 50 ? C.green : p <= 80 ? C.yellow : C.red;
 
+const fmtTokens = n => n >= 1_000_000
+    ? `${(n / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`
+    : `${Math.round(n / 1000)}k`;
+
 function getGitBranch(cwd) {
     try {
         return execSync('git branch --show-current', { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim() || null;
@@ -63,34 +67,33 @@ process.stdin.on('end', () => {
         const data = JSON.parse(input);
         const parts = [];
 
-        const pct    = Math.floor(data.context_window?.used_percentage || 0);
-        const usedK  = Math.round((data.context_window?.total_input_tokens || 0) / 1000);
-        const totalK = (data.context_window?.context_window_size || 0) / 1000;
+        const usedTokens  = data.context_window?.total_input_tokens || 0;
+        const totalTokens = data.context_window?.context_window_size || 0;
+        const usedK  = Math.round(usedTokens / 1000);
 
-        const ctxColor = usedK >= 100 ? C.red : usedK >= 80 ? C.orange : '';
-        const filled = Math.floor(pct / 10);
-        const bar = ctxColor
-            ? `${ctxColor}${'▓'.repeat(filled)}${'░'.repeat(10 - filled)}${C.reset}`
-            : '▓'.repeat(filled) + '░'.repeat(10 - filled);
-        const ctxLabel = ctxColor
-            ? `${ctxColor}(${usedK}k/${totalK}k)${C.reset}`
-            : `(${usedK}k/${totalK}k)`;
+        const ctxColor = usedK >= 100 ? C.red : usedK >= 80 ? C.orange : C.green;
+        const ctxLabel = `${ctxColor}(${fmtTokens(usedTokens)}/${fmtTokens(totalTokens)})${C.reset}`;
 
         const rtk = getRtkStats();
         const rtkStr = rtk
-            ? `${C.cyan}↑${Math.round(rtk.total_input / 1000)}k${C.reset} ${C.yellow}↓${Math.round(rtk.total_output / 1000)}k${C.reset} ${C.green}♺ ${Math.round(rtk.total_saved / 1000)}k (${Math.round(rtk.avg_savings_pct)}%)${C.reset}`
+            ? `${C.cyan}↑${fmtTokens(rtk.total_input)}${C.reset} ${C.yellow}↓${fmtTokens(rtk.total_output)}${C.reset} ${C.green}♺ ${fmtTokens(rtk.total_saved)} (${Math.round(rtk.avg_savings_pct)}%)${C.reset}`
             : '';
 
-        const barCtxGroup = `${bar} ${ctxLabel}`;
-
         const week          = data.rate_limits?.seven_day?.used_percentage;
+        const weekResetsAt  = data.rate_limits?.seven_day?.resets_at;
         const fiveH         = data.rate_limits?.five_hour?.used_percentage;
         const fiveHResetsAt = data.rate_limits?.five_hour?.resets_at;
 
         const pctParts = [];
         if (week != null) {
             const w = Math.round(week);
-            pctParts.push(`${C.bold}7d:${C.reset} ${pctColor(w)}${w}%${C.reset}`);
+            let weekStr = `${C.bold}7d:${C.reset} ${pctColor(w)}${w}%${C.reset}`;
+            if (w >= 80 && weekResetsAt != null) {
+                const weekResetDate = new Date(weekResetsAt * 1000)
+                    .toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+                weekStr += ` (↻ ${weekResetDate})`;
+            }
+            pctParts.push(weekStr);
         }
 
         let resetsStr = '';
@@ -106,13 +109,17 @@ process.stdin.on('end', () => {
             const diffStr  = diff > 0 ? `+${diff}%` : `${diff}%`;
             const diffColor = diff > 0 ? C.red : C.green;
 
-            const hours     = Math.floor(remaining / 3600);
-            const mins      = Math.floor((remaining % 3600) / 60);
             const resetTime = new Date(fiveHResetsAt * 1000)
                 .toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', hour12: false });
 
+            const remainingHours = remaining / 3600;
+            const resetColor = remainingHours > 3 ? C.red
+                : remainingHours > 2 ? C.orange
+                : remainingHours < 1 ? C.green
+                : '';
+
             pctParts.push(`${C.bold}5h:${C.reset} ${pctColor(fh)}${fh}%${C.reset}/${hourBudget}% (${diffColor}${diffStr}${C.reset})`);
-            resetsStr = `resets in ${hours}h${mins}m @ ${resetTime}`;
+            resetsStr = resetColor ? `${resetColor}↻ ${resetTime}${C.reset}` : `↻ ${resetTime}`;
         }
         const pctGroup = pctParts.length ? `(${pctParts.join(' ')})` : '';
 
@@ -130,9 +137,9 @@ process.stdin.on('end', () => {
             : `${C.blue}${projectName}${C.reset}`;
 
         parts.push(`${projectStr}`);
-        parts.push(`${C.orange}${model}${C.reset}${effortStr} ${barCtxGroup}`);
-        if (pctGroup) parts.push(pctGroup);
-        if (resetsStr) parts.push(resetsStr);
+        parts.push(`${C.orange}${model}${C.reset}${effortStr} ${ctxLabel}`);
+        if (pctGroup) parts.push(resetsStr ? `${pctGroup} ${resetsStr}` : pctGroup);
+        else if (resetsStr) parts.push(resetsStr);
         if (rtkStr) parts.push(`(${rtkStr})`);
 
         console.log(parts.join(` ${C.white}·${C.reset} `));
