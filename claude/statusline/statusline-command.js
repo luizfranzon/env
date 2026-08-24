@@ -7,6 +7,12 @@ const path = require('path');
 const RTK_CACHE = path.join(os.tmpdir(), 'rtk-statusline-cache.json');
 const RTK_TTL = 10_000;
 
+// Seções da statusline — false pra ocultar
+const SHOW_PATH_AND_BRANCH        = true;
+const SHOW_MODEL_EFFORT_CONTEXT   = true;
+const SHOW_USAGE_AND_RESET_TIME   = true;
+const SHOW_RTK_STATS              = true;
+
 const C = {
     reset:  '\x1b[0m',
     bold:   '\x1b[1m',
@@ -74,14 +80,14 @@ process.stdin.on('end', () => {
         const ctxColor = usedK >= 100 ? C.red : usedK >= 80 ? C.orange : C.green;
         const ctxLabel = `${ctxColor}(${fmtTokens(usedTokens)}/${fmtTokens(totalTokens)})${C.reset}`;
 
-        const rtk = getRtkStats();
+        const rtk = SHOW_RTK_STATS ? getRtkStats() : null;
         const rtkStr = rtk
             ? `${C.cyan}↑${fmtTokens(rtk.total_input)}${C.reset} ${C.yellow}↓${fmtTokens(rtk.total_output)}${C.reset} ${C.green}♺ ${fmtTokens(rtk.total_saved)} (${Math.round(rtk.avg_savings_pct)}%)${C.reset}`
             : '';
 
-        const week          = data.rate_limits?.seven_day?.used_percentage;
+        const week          = SHOW_USAGE_AND_RESET_TIME ? data.rate_limits?.seven_day?.used_percentage : null;
         const weekResetsAt  = data.rate_limits?.seven_day?.resets_at;
-        const fiveH         = data.rate_limits?.five_hour?.used_percentage;
+        const fiveH         = SHOW_USAGE_AND_RESET_TIME ? data.rate_limits?.five_hour?.used_percentage : null;
         const fiveHResetsAt = data.rate_limits?.five_hour?.resets_at;
 
         const pctParts = [];
@@ -129,18 +135,26 @@ process.stdin.on('end', () => {
             ? ` (${C.bold}${EFFORT_COLORS[effort] || ''}${effort}${C.reset})`
             : '';
 
-        const cwd = process.cwd();
-        const projectName = path.basename(cwd);
-        const branch = getGitBranch(cwd);
-        const projectStr = branch
-            ? `${C.blue}${projectName}${C.reset} @ ${C.cyan}${branch}${C.reset}`
-            : `${C.blue}${projectName}${C.reset}`;
+        if (SHOW_PATH_AND_BRANCH) {
+            const cwd = process.cwd();
+            const projectName = path.basename(cwd);
+            const branch = getGitBranch(cwd);
+            const projectStr = branch
+                ? `${C.blue}${projectName}${C.reset} @ ${C.cyan}${branch}${C.reset}`
+                : `${C.blue}${projectName}${C.reset}`;
+            parts.push(`${projectStr}`);
+        }
 
-        parts.push(`${projectStr}`);
-        parts.push(`${C.orange}${model}${C.reset}${effortStr} ${ctxLabel}`);
-        if (pctGroup) parts.push(resetsStr ? `${pctGroup} ${resetsStr}` : pctGroup);
-        else if (resetsStr) parts.push(resetsStr);
-        if (rtkStr) parts.push(`(${rtkStr})`);
+        if (SHOW_MODEL_EFFORT_CONTEXT) {
+            parts.push(`${C.orange}${model}${C.reset}${effortStr} ${ctxLabel}`);
+        }
+
+        if (SHOW_USAGE_AND_RESET_TIME) {
+            if (pctGroup) parts.push(resetsStr ? `${pctGroup} ${resetsStr}` : pctGroup);
+            else if (resetsStr) parts.push(resetsStr);
+        }
+
+        if (SHOW_RTK_STATS && rtkStr) parts.push(`(${rtkStr})`);
 
         console.log(parts.join(` ${C.white}·${C.reset} `));
     } catch (error) {
