@@ -7,6 +7,7 @@ set -uo pipefail
 input=$(cat)
 event=$(printf '%s' "$input" | jq -r '.hook_event_name // empty' 2>/dev/null)
 tool=$(printf '%s' "$input" | jq -r '.tool_name // empty' 2>/dev/null)
+message=$(printf '%s' "$input" | jq -r '.message // empty' 2>/dev/null)
 
 WIN_ID="${KITTY_WINDOW_ID:-0}"
 BLINK_PIDFILE="/tmp/kitty-tab-blink-${WIN_ID}.pid"
@@ -45,9 +46,21 @@ stop_blink
 # Aba ativa: cor clara do evento. Aba inativa: mesma cor escurecida (~42%),
 # com foreground recalculado em cada par p/ manter contraste (fundo claro -> texto
 # escuro, fundo escuro -> texto claro).
-if [[ "$event" == "Notification" ]] || { [[ "$event" == "PreToolUse" ]] && [[ "$tool" == "AskUserQuestion" ]]; }; then
-  # Aguardando resposta do usuário: roxo piscando.
+# Notification dispara tanto pra pedido de permissão real quanto pro aviso
+# genérico de idle ("Claude is waiting for your input") — só o primeiro é
+# uma decisão de fato pendente, então só esse pisca roxo. O idle genérico
+# não mexe em nada (mantém a cor que já estava, ex: verde do Stop).
+is_permission_notification=false
+if [[ "$event" == "Notification" ]] && printf '%s' "$message" | grep -qi "permission"; then
+  is_permission_notification=true
+fi
+
+if [[ "$is_permission_notification" == true ]] || { [[ "$event" == "PreToolUse" ]] && [[ "$tool" == "AskUserQuestion" ]]; }; then
+  # Aguardando decisão do usuário: roxo piscando.
   start_blink_purple
+elif [[ "$event" == "Notification" ]]; then
+  # idle genérico: azul padrão.
+  set_tab_color "#89b4fa" "#171423" "#394b69" "#ffffff"
 else
   case "$event" in
     SessionStart)
