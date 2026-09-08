@@ -29,7 +29,19 @@ Copie o script para `~/.claude/statusline-command.js`.
 
 ## Hook de abas do kitty
 
-O script `hooks/kitty-tab-hook.sh` recolore/renomeia a aba do kitty conforme o hook do Claude Code disparado (pensando, executando tool, aguardando input, pronto, etc), com cor mais escura pra aba inativa (contraste calculado por luminância).
+O script `hooks/kitty-tab-hook.sh` recolore a aba do kitty conforme o hook do Claude Code disparado: laranja enquanto trabalha (prompt/tool calls), verde quando termina (`Stop`), azul no idle genérico, roxo piscando quando espera uma decisão sua de fato (permissão ou `AskUserQuestion`) — sempre com par de cor ativa/inativa calculado por contraste de luminância.
+
+### Instalação automática
+
+```bash
+config/kitty/install.sh
+```
+
+Copia `config/kitty/kitty.conf` (+ `gnome-dark.conf`/`theme.conf`) pra `~/.config/kitty/` (com backup se já existir e for diferente), copia `claude/hooks/kitty-tab-hook.sh` pra `~/.claude/hooks/` e registra o hook em `~/.claude/settings.json` via `jq` — só mexe na chave `hooks`, preserva o resto do arquivo (env vars, model, statusLine etc). Idempotente: rodar de novo não duplica nada.
+
+**Depois de rodar, reinicie o kitty** (fechar e abrir — reload de config não é suficiente) pra `allow_remote_control`/`listen_on` pegarem.
+
+### Instalação manual
 
 **Requisitos no `~/.config/kitty/kitty.conf`** (ver `config/kitty/kitty.conf`):
 
