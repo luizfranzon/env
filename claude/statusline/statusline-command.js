@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+
 const { execSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');
@@ -11,7 +12,7 @@ const RTK_TTL = 10_000;
 const SHOW_PATH_AND_BRANCH        = true;
 const SHOW_MODEL_EFFORT_CONTEXT   = true;
 const SHOW_USAGE_AND_RESET_TIME   = true;
-const SHOW_RTK_STATS              = true;
+const SHOW_RTK_STATS              = false;
 
 const C = {
     reset:  '\x1b[0m',
@@ -120,9 +121,8 @@ process.stdin.on('end', () => {
 
             const remainingHours = remaining / 3600;
             const resetColor = remainingHours > 3 ? C.red
-                : remainingHours > 2 ? C.orange
-                : remainingHours < 1 ? C.green
-                : '';
+                : remainingHours > 1 ? C.yellow
+                : C.green;
 
             pctParts.push(`${C.bold}5h:${C.reset} ${pctColor(fh)}${fh}%${C.reset}/${hourBudget}% (${diffColor}${diffStr}${C.reset})`);
             resetsStr = resetColor ? `${resetColor}↻ ${resetTime}${C.reset}` : `↻ ${resetTime}`;
